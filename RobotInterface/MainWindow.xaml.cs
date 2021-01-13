@@ -14,6 +14,7 @@ using System.Windows.Navigation;
 using System.Windows.Shapes;
 using ExtendedSerialPort;
 using System.IO.Ports;
+using System.Windows.Threading;
 
 
 namespace RobotInterface
@@ -23,20 +24,45 @@ namespace RobotInterface
     /// </summary>
     public partial class MainWindow : Window
     {
-        SerialPort serialPort1;
-
-        
+        ReliableSerialPort serialPort1;
+        Robot robot;
+        DispatcherTimer timerAffichage;
         public MainWindow()
         {
             InitializeComponent();
-            serialPort1 = new ReliableSerialPort("Com3", 115200, Parity.None, 8, StopBits.One);
+            serialPort1 = new ReliableSerialPort("COM23", 115200, Parity.None, 8, StopBits.One);
+            robot = new Robot();
+            timerAffichage = new DispatcherTimer();
+            timerAffichage.Interval = new TimeSpan(0, 0, 0, 0, 100);
+            timerAffichage.Tick += TimerAffichage_Tick;
+            timerAffichage.Start();
+            serialPort1.DataReceived += SerialPort1_DataReceived;
             serialPort1.Open();
         }
+
+        private void TimerAffichage_Tick(object sender, EventArgs e)
+        {
+            while(robot.byteListReceived.Count>0)
+            {
+                textBoxReception.Text += "0x" + robot.byteListReceived.Dequeue().ToString("X2") + " ";
+            
+            }
+        }
+
+        public void SerialPort1_DataReceived(object sender, DataReceivedArgs e)
+        {
+            robot.receivedText += Encoding.UTF8.GetString(e.Data, 0, e.Data.Length);
+            for (int i = 0; i < e.Data.Length; i++)
+            {
+                robot.byteListReceived.Enqueue(e.Data[i]);
+            }
+        }
+
         public void SendMessage()
         {
-            textBoxReception.Text += "Reçu : " + textBoxEmission.Text + "\n";
+            //textBoxReception.Text += "Reçu : " + robot.receivedText + "\n";
+            serialPort1.WriteLine(textBoxEmission.Text);
             textBoxEmission.Text = "";
-            serialPort1.WriteLine;
         }
 
         private void textBox_TextChanged(object sender, TextChangedEventArgs e)
@@ -56,13 +82,7 @@ namespace RobotInterface
 
         private void buttonEnvoyer_Click(object sender, RoutedEventArgs e)
         {
-            if (buttonEnvoyer.Background == Brushes.RoyalBlue)
-                buttonEnvoyer.Background = Brushes.Beige; 
-            else
-                buttonEnvoyer.Background = Brushes.RoyalBlue; //Quand on clique sur le bouton, il devient bleu et on utilise de l'UC
-
             SendMessage();
-
         }
 
         
@@ -73,6 +93,21 @@ namespace RobotInterface
                 SendMessage();
             }
 
+        }
+
+        private void buttonClear_Click(object sender, RoutedEventArgs e)
+        {
+            textBoxReception.Text = "";
+        }
+
+        private void buttonTest_Click(object sender, RoutedEventArgs e)
+        {
+            byte[] byteList;
+            byteList = new byte[20];
+            for (int i = 0; i < 20;i++) {
+                    byteList[i] = (byte)(2 * i);
+            }
+            serialPort1.Write(byteList, 0, byteList.Length);
         }
     }
 }
